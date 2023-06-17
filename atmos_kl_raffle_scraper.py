@@ -1,6 +1,7 @@
 from requests_html import HTMLSession, AsyncHTMLSession
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import asyncio
+import json
 
 @dataclass
 class Product:
@@ -12,10 +13,9 @@ class Product:
     raffle_status: str
     raffle_end_date: str
     raffle_url: str
-
-def get_product_info_from_raffle_page():
-    session = HTMLSession()
-    res = session.get("https://raffle.atmos-kl.com/")
+                
+def get_product_info_from_raffle_page(session):
+    res = session.get("https://raffle.atmos-kl.com/")    
     products = res.html.find("section#products-section", first = True).find("article")
         
     product_list = []
@@ -35,6 +35,28 @@ def get_product_info_from_raffle_page():
                                     raffle_status = raffle_status, 
                                     raffle_end_date = raffle_end_date, 
                                     raffle_url = raffle_url))
+    
+    json_first_product_raffle_url_dict = None
+    with open('data.json', 'r') as file:
+        try:    
+            json_first_product_raffle_url_dict = json.load(file)
+        except Exception as e:
+            pass
+    
+    scraped_first_product = product_list[0]
+    scraped_first_product_dict = asdict(scraped_first_product)
+    scraped_first_product_raffle_url_dict = dict(map(lambda key: (key, scraped_first_product_dict[key]), ["raffle_url"]))
+    
+    if json_first_product_raffle_url_dict == None:
+        with open('data.json', 'w') as file:
+            json.dump(scraped_first_product_raffle_url_dict, file)
+    else:
+        if json_first_product_raffle_url_dict == scraped_first_product_raffle_url_dict:
+            return None
+        else:
+            with open('data.json', 'w') as file:
+                json.dump(scraped_first_product_raffle_url_dict, file)
+                      
     return product_list
 
 async def get_product_info_from_pdp(a_session, url):
@@ -51,16 +73,17 @@ async def main(product_url_list):
     
 if __name__ == "__main__":
     
-    product_list = get_product_info_from_raffle_page()
-    product_url_list = list(map(lambda x: x.raffle_url, product_list))
-    
-    product_desc_list = asyncio.run(main(product_url_list))
-    
-    for product in product_list:
-        for desc in product_desc_list:
-            if product.raffle_url == desc[0]: 
-                product.sku_id = desc[1]
-                product.colourway = desc[2]
-            
+    session = HTMLSession()
+    product_list = get_product_info_from_raffle_page(session)
+ 
+    if product_list != None:    
+        product_url_list = list(map(lambda x: x.raffle_url, product_list))
+        product_desc_list = asyncio.run(main(product_url_list))
+        
+        for product in product_list:
+            for desc in product_desc_list:
+                if product.raffle_url == desc[0]: 
+                    product.sku_id = desc[1]
+                    product.colourway = desc[2]
+                
     print(product_list)
-    
