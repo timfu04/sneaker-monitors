@@ -1,5 +1,6 @@
 from requests_html import HTMLSession, AsyncHTMLSession
 from dataclasses import dataclass, asdict
+from configparser import ConfigParser
 import asyncio
 import json
 
@@ -73,6 +74,12 @@ async def main(product_url_list):
     
 if __name__ == "__main__":
         
+    config = ConfigParser()
+    config.read("config.ini")
+    
+    print(config["atmos_replit"]["path"])
+    
+
     session = HTMLSession()
     product_list = get_product_info_from_raffle_page(session)
  
