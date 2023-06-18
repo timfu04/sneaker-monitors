@@ -37,11 +37,11 @@ def get_product_info_from_raffle_page(session):
                                     raffle_url = raffle_url))
     
     json_first_product_raffle_url_dict = None
-    with open('data.json', 'r') as file:
-        try:    
+    try:
+        with open('data.json', 'r') as file:    
             json_first_product_raffle_url_dict = json.load(file)
-        except Exception as e:
-            pass
+    except Exception as e:
+        pass
     
     scraped_first_product = product_list[0]
     scraped_first_product_dict = asdict(scraped_first_product)
@@ -72,7 +72,7 @@ async def main(product_url_list):
     return await asyncio.gather(*tasks)
     
 if __name__ == "__main__":
-    
+        
     session = HTMLSession()
     product_list = get_product_info_from_raffle_page(session)
  
