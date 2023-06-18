@@ -15,6 +15,12 @@ class Product:
     raffle_status: str
     raffle_end_date: str
     raffle_url: str
+    img_url: str
+    
+def find_missing_products(scraped_dict_list, json_dict_list):
+    json_raffle_urls = [product.raffle_url for product in json_dict_list]
+    missing_products = [product for product in scraped_dict_list if product.raffle_url not in json_raffle_urls]
+    return missing_products
 
 def run_replit_config():
     config = ConfigParser()
@@ -37,6 +43,7 @@ def get_product_info_from_raffle_page():
         raffle_status = product_info[4]
         raffle_end_date = product_info[0]
         raffle_url = product.find("a", first=True).attrs["href"]
+        img_url = product.find("img", first=True).attrs["src"]  
         product_list.append(Product(gender = gender, 
                                     name = name, 
                                     price = price,
@@ -44,31 +51,31 @@ def get_product_info_from_raffle_page():
                                     colourway = None, 
                                     raffle_status = raffle_status, 
                                     raffle_end_date = raffle_end_date, 
-                                    raffle_url = raffle_url))
-    
-    json_first_product_raffle_url_dict = None
+                                    raffle_url = raffle_url,
+                                    img_url = img_url))
+        
+    json_product_dict_list = None
     try:
         with open('data.json', 'r') as file:    
-            json_first_product_raffle_url_dict = json.load(file)
+            json_product_dict_list = json.load(file)
     except Exception as e:
         pass
     
-    scraped_first_product = product_list[0]
-    scraped_first_product_dict = asdict(scraped_first_product)
-    scraped_first_product_raffle_url_dict = dict(map(lambda key: (key, scraped_first_product_dict[key]), ["raffle_url"]))
+    scraped_product_dict_list = list(map(lambda p: asdict(p), product_list))
     
-    if json_first_product_raffle_url_dict == None:
+    if json_product_dict_list == None:
         with open('data.json', 'w') as file:
-            json.dump(scraped_first_product_raffle_url_dict, file)
+            json.dump(scraped_product_dict_list, file)
+        return product_list
     else:
-        if json_first_product_raffle_url_dict == scraped_first_product_raffle_url_dict:
+        json_product_list = [Product(**d) for d in json_product_dict_list]
+        if find_missing_products(product_list, json_product_list) == []: # Empty list means both are the same   
             return None
         else:
             with open('data.json', 'w') as file:
-                json.dump(scraped_first_product_raffle_url_dict, file)
-                      
-    return product_list
-
+                json.dump(scraped_product_dict_list, file)
+            return find_missing_products(product_list, json_product_list)
+        
 async def get_product_info_from_pdp(a_session, url):
     res = await a_session.get(url)
     product_desc = res.html.find("div#main-product-description", first = True).find("li")
@@ -76,25 +83,7 @@ async def get_product_info_from_pdp(a_session, url):
     colourway = product_desc[1].text.split(":")[-1].strip()
     return (url, sku_id, colourway)
     
-async def main(product_url_list):
+async def start_async_pdp_scrape(product_url_list):
     a_session = AsyncHTMLSession()    
     tasks = (get_product_info_from_pdp(a_session, url) for url in product_url_list) 
     return await asyncio.gather(*tasks)
-    
-if __name__ == "__main__":
-        
-    # run_replit_config()
-
-    product_list = get_product_info_from_raffle_page()
- 
-    if product_list != None:    
-        product_url_list = list(map(lambda x: x.raffle_url, product_list))
-        product_desc_list = asyncio.run(main(product_url_list))
-        
-        for product in product_list:
-            for desc in product_desc_list:
-                if product.raffle_url == desc[0]: 
-                    product.sku_id = desc[1]
-                    product.colourway = desc[2]
-                
-    print(product_list)
