@@ -4,6 +4,7 @@ import datetime
 from dotenv import load_dotenv
 from discord.ext import tasks
 from typing import List
+from flask_app import keep_alive
 from atmos_scraper import Product, run_replit_config, get_product_info_from_raffle_page, start_async_pdp_scrape
 
 load_dotenv("atmos/.env")
@@ -68,5 +69,7 @@ def run_discord_bot():
 if __name__ == "__main__":
     
     # run_replit_config() 
+    
+    keep_alive()
     
     run_discord_bot()
