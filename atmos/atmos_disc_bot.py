@@ -1,6 +1,8 @@
 import os
+import pytz
 import discord
-import datetime
+import asyncio
+from datetime import datetime
 from dotenv import load_dotenv
 from discord.ext import tasks
 from typing import List
@@ -8,6 +10,9 @@ from flask_app import keep_alive
 from atmos_scraper import Product, run_replit_config, get_product_info_from_raffle_page, start_async_pdp_scrape
 
 load_dotenv("atmos/.env")
+
+malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
+malaysia_datetime = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(malaysia_tz)
 
 def run_discord_bot():
     TOKEN = os.getenv("BOT_TOKEN")
@@ -20,6 +25,7 @@ def run_discord_bot():
     
     @tasks.loop(minutes=30) # Repeat task every 30 minutes
     async def scrape_data():
+        print("start scrape")
         product_list = get_product_info_from_raffle_page() 
         if product_list != None:    
             product_url_list = list(map(lambda x: x.raffle_url, product_list))
@@ -45,7 +51,7 @@ def run_discord_bot():
                     title = product.name, 
                     color = discord.Color.green(), 
                     url = product.raffle_url, 
-                    timestamp = datetime.datetime.utcnow())
+                    timestamp = malaysia_datetime)
                 embed.set_thumbnail(url=product.img_url)
                 embed.add_field(name = "Price", value = product.price)
                 embed.add_field(name = "Colourway", value = product.colourway)
@@ -58,6 +64,7 @@ def run_discord_bot():
                 embed.add_field(name = "\u200B", value = "\u200B") # New line
                 embed.set_footer(text = "Atmos KL", icon_url = "https://atmos-kl.com/pub/media/favicon/stores/1/atmos-favicon-01.jpg")
                 await channel.send(embed = embed)
+                await asyncio.sleep(0.2)
                     
     @scrape_data.before_loop
     async def before_scrape_data():
