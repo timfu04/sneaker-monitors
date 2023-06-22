@@ -5,7 +5,6 @@
 
 ## __2. Screenshots__
 <div align="center">
-![live raffle v2](https://github.com/timfu04/sneaker-monitors/assets/70854339/d9af1c92-0fcb-4376-9916-269def27ca74)
 </div>
 
 ## __3. Features__
