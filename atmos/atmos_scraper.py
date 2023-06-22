@@ -8,25 +8,26 @@ import os
 
 @dataclass
 class Product:
-    gender: str
+    category: str
     name: str
     price: str
     sku_id: str
     colourway: str
     raffle_status: str
+    raffle_time_left: str
     raffle_end_date: str
     raffle_url: str
     img_url: str
                 
 def find_missing_products(scraped_product_list: List[Product], json_product_list: List[Product]) -> List[Product]:
-    """ Find missing products that are in "scraped_dict_list" but not in "json_dict_list"
+    """ Find missing products that are in "scraped_product_list" but not in "json_product_list"
 
     Args:
         scraped_product_list (List[Product]): List of scraped products
         json_product_list (List[Product]): List of products from JSON
 
     Returns:
-        List[Product]: Missing products that are in "scraped_dict_list" but not in "json_dict_list"
+        List[Product]: Missing products that are in "scraped_product_list" but not in "json_product_list"
     """
     json_raffle_urls = [product.raffle_url for product in json_product_list]
     missing_products = [product for product in scraped_product_list if product.raffle_url not in json_raffle_urls]
@@ -40,47 +41,79 @@ def run_replit_config() -> None:
     name = config["replit_atmos"]["name"]
     path = config["replit_atmos"]["path"]
     os.chdir(f"{path}/{name}")
-                
+    
+def set_raffle_product_info(product) -> Product:
+    """ Set raffle product info based on open or closed raffle
+
+    Args:
+        product (_type_): Product HTML elements
+
+    Returns:
+        Product: Product data class
+    """
+    product_info = product.text.split("\n")
+    if len(product_info) == 6: # Open raffle
+        category = product_info[2]
+        name = product_info[3]
+        price = product_info[4]
+        if product_info[-1] == "Enter Raffle":
+            raffle_status = "Open Raffle"
+        raffle_time_left = product_info[0]   
+        raffle_url = product.find("a", first=True).attrs["href"]
+        img_url = product.find("img", first=True).attrs["src"]
+        return Product(category = category, 
+                        name = name, 
+                        price = price,
+                        sku_id = None, 
+                        colourway = None, 
+                        raffle_status = raffle_status, 
+                        raffle_time_left = raffle_time_left,
+                        raffle_end_date = None, 
+                        raffle_url = raffle_url,
+                        img_url = img_url)
+    elif len(product_info) == 5: # Closed raffle
+        category = product_info[1]
+        name = product_info[2]
+        price = product_info[3]
+        raffle_status = product_info[4]
+        raffle_time_left = "Raffle Ended"
+        raffle_url = product.find("a", first=True).attrs["href"]
+        img_url = product.find("img", first=True).attrs["src"]  
+        return Product(category = category, 
+                        name = name, 
+                        price = price,
+                        sku_id = None, 
+                        colourway = None, 
+                        raffle_status = raffle_status,
+                        raffle_time_left = raffle_time_left,
+                        raffle_end_date = None, 
+                        raffle_url = raffle_url,
+                        img_url = img_url)
+
 def get_product_info_from_raffle_page() -> Union[List, None]:
-    """ Scrape data from raffle page, process data scraped, save or update data into JSON if needed, find different between scraped data and JSON data
+    """ Scrape data from raffle page, process data scraped, save or update data into JSON if needed, find difference between scraped data and JSON data
 
     Returns:
         Union[List, None]: Returns list when JSON data is empty or when scraped data and JSON data not same, 
         returns None when scraped data and JSON data is the same
     """
     session = HTMLSession()
-    res = session.get("https://raffle.atmos-kl.com/")    
+    res = session.get("https://raffle.atmos-kl.com/")        
     products = res.html.find("section#products-section", first = True).find("article")
         
     product_list = []
     for product in products:
-        product_info = product.text.split("\n")
-        gender = product_info[1]
-        name = product_info[2]
-        price = product_info[3]
-        raffle_status = product_info[4]
-        raffle_end_date = product_info[0]
-        raffle_url = product.find("a", first=True).attrs["href"]
-        img_url = product.find("img", first=True).attrs["src"]  
-        product_list.append(Product(gender = gender, 
-                                    name = name, 
-                                    price = price,
-                                    sku_id = None, 
-                                    colourway = None, 
-                                    raffle_status = raffle_status, 
-                                    raffle_end_date = raffle_end_date, 
-                                    raffle_url = raffle_url,
-                                    img_url = img_url))
-        
+        product_list.append(set_raffle_product_info(product))
+      
     json_product_dict_list = None
     try:
         with open('data.json', 'r') as file:    
             json_product_dict_list = json.load(file)
     except Exception as e:
-        pass
+        print(f"Failed to load JSON: {e}")
     
     scraped_product_dict_list = list(map(lambda p: asdict(p), product_list))
-    
+
     if json_product_dict_list == None:
         with open('data.json', 'w') as file:
             json.dump(scraped_product_dict_list, file)
@@ -93,22 +126,25 @@ def get_product_info_from_raffle_page() -> Union[List, None]:
             with open('data.json', 'w') as file:
                 json.dump(scraped_product_dict_list, file)
             return find_missing_products(product_list, json_product_list)
-        
-async def get_product_info_from_pdp(a_session: AsyncHTMLSession, url: str) -> Tuple[str, str, str]:
-    """ Extract SKU id and colourway from product detail page
+           
+async def get_product_info_from_pdp(a_session: AsyncHTMLSession, url: str) -> Tuple[str, str, str, str]:
+    """ Extract SKU id, colourway, and raffle end date from product detail page
 
     Args:
         a_session (AsyncHTMLSession): Async HTML session
         url (str): Product detail page URL
 
     Returns:
-        Tuple[str, str, str]: Tuple contains URL, SKU id, colourway
+        Tuple[str, str, str, str]: Contains URL, SKU id, colourway, raffle end date
     """
-    res = await a_session.get(url)
+    res = await a_session.get(url)    
     product_desc = res.html.find("div#main-product-description", first = True).find("li")
     sku_id = product_desc[0].text.split(":")[-1].strip()
     colourway = product_desc[1].text.split(":")[-1].strip()
-    return (url, sku_id, colourway)
+
+    draw_info = res.html.find("div#main-product-enter-draw", first = True).find("h3", first = True)
+    raffle_end_date = draw_info.text.split("on ")[-1]
+    return (url, sku_id, colourway, raffle_end_date)
     
 async def start_async_pdp_scrape(product_url_list: list) -> List[Tuple]:
     """ Define a generator of coroutines of "(get_product_info_from_pdp(a_session, url)" for each URL,
