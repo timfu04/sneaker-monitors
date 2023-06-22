@@ -18,7 +18,7 @@
 - Users receive beautifully formatted notifications in Discord embeds, providing detailed information and quick access to the latest sneaker releases.
 
 ## __4. Installation__
-- Make sure you have Git and Python installed on your computer to clone and run this application.
+- Make sure you have `Git` and `Python` installed on your computer to clone and run this application.
 
     ## __1. Clone this repository__
         git clone https://github.com/timfu04/sneaker-monitors.git
