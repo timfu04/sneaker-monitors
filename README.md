@@ -5,6 +5,11 @@
 
 ## __2. Screenshots__
 <div align="center">
+    
+![live_raffle_screenshot](https://github.com/timfu04/programming_notes_master/assets/70854339/77c5b3d2-7dda-4c61-a2e8-c083c12f7419)
+
+*Discord embed*
+
 </div>
 
 ## __3. Features__
