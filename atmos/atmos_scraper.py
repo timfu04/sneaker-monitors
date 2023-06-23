@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 
+
 @dataclass
 class Product:
     category: str
@@ -18,7 +19,35 @@ class Product:
     raffle_end_date: str
     raffle_url: str
     img_url: str
-                
+    
+    
+def read_json(file_name: str) -> Union[List[Product], None]:
+    """ Read list of dictionaries from JSON file
+
+    Args:
+        file_name (str): File name (including file extension)
+
+    Returns:
+        Union[List[Product], None]: Either list of Product or None
+    """
+    json_product_dict_list = None
+    try:
+        with open(file_name, "r") as file:
+            json_product_dict_list = json.load(file)
+    except Exception as e:
+        print(f"Failed to read JSON: {e}")
+    if json_product_dict_list != None:
+        json_product_list = [Product(**d) for d in json_product_dict_list]
+        return json_product_list
+    return None
+  
+  
+def write_json(file_name: str, scraped_product_list: List[Product]) -> None:
+    scraped_product_dict_list = list(map(lambda p: asdict(p), scraped_product_list))  
+    with open(file_name, 'w') as file:
+        json.dump(scraped_product_dict_list, file)
+            
+             
 def find_missing_products(scraped_product_list: List[Product], json_product_list: List[Product]) -> List[Product]:
     """ Find missing products that are in "scraped_product_list" but not in "json_product_list"
 
@@ -28,10 +57,11 @@ def find_missing_products(scraped_product_list: List[Product], json_product_list
 
     Returns:
         List[Product]: Missing products that are in "scraped_product_list" but not in "json_product_list"
-    """
-    json_raffle_urls = [product.raffle_url for product in json_product_list]
-    missing_products = [product for product in scraped_product_list if product.raffle_url not in json_raffle_urls]
-    return missing_products
+    """ 
+    json_raffle_status_url = [(product.raffle_status, product.raffle_url) for product in json_product_list]
+    missing_product_list = [product for product in scraped_product_list if (product.raffle_status, product.raffle_url) not in json_raffle_status_url]
+    return missing_product_list
+    
 
 def run_replit_config() -> None:
     """ Get and change to script directory in Replit environment
@@ -41,6 +71,7 @@ def run_replit_config() -> None:
     name = config["replit_atmos"]["name"]
     path = config["replit_atmos"]["path"]
     os.chdir(f"{path}/{name}")
+    
     
 def set_raffle_product_info(product) -> Product:
     """ Set raffle product info based on open or closed raffle
@@ -90,42 +121,24 @@ def set_raffle_product_info(product) -> Product:
                         raffle_url = raffle_url,
                         img_url = img_url)
 
-def get_product_info_from_raffle_page() -> Union[List, None]:
-    """ Scrape data from raffle page, process data scraped, save or update data into JSON if needed, find difference between scraped data and JSON data
+
+def get_product_info_from_raffle_page() -> List[Product]:
+    """ 1. Scrape products from raffle page
+        2. Create Product data class instance for each product
+        3. Store Product data class instances into a list
 
     Returns:
-        Union[List, None]: Returns list when JSON data is empty or when scraped data and JSON data not same, 
-        returns None when scraped data and JSON data is the same
+        List[Product]: List of Product data class instances
     """
     session = HTMLSession()
     res = session.get("https://raffle.atmos-kl.com/")        
-    products = res.html.find("section#products-section", first = True).find("article")
-        
-    product_list = []
-    for product in products:
-        product_list.append(set_raffle_product_info(product))
-      
-    json_product_dict_list = None
-    try:
-        with open('data.json', 'r') as file:    
-            json_product_dict_list = json.load(file)
-    except Exception as e:
-        print(f"Failed to load JSON: {e}")
+    raffle_products = res.html.find("section#products-section", first = True).find("article")
     
-    scraped_product_dict_list = list(map(lambda p: asdict(p), product_list))
+    raffle_product_list = []
+    for raffle_product in raffle_products:
+        raffle_product_list.append(set_raffle_product_info(raffle_product))
+    return raffle_product_list
 
-    if json_product_dict_list == None:
-        with open('data.json', 'w') as file:
-            json.dump(scraped_product_dict_list, file)
-        return product_list
-    else:
-        json_product_list = [Product(**d) for d in json_product_dict_list]
-        if find_missing_products(product_list, json_product_list) == []: # Empty list means both are the same   
-            return None
-        else:
-            with open('data.json', 'w') as file:
-                json.dump(scraped_product_dict_list, file)
-            return find_missing_products(product_list, json_product_list)
            
 async def get_product_info_from_pdp(a_session: AsyncHTMLSession, url: str) -> Tuple[str, str, str, str]:
     """ Extract SKU id, colourway, and raffle end date from product detail page
@@ -142,19 +155,20 @@ async def get_product_info_from_pdp(a_session: AsyncHTMLSession, url: str) -> Tu
     sku_id = product_desc[0].text.split(":")[-1].strip()
     colourway = product_desc[1].text.split(":")[-1].strip()
 
-    draw_info = res.html.find("div#main-product-enter-draw", first = True).find("h3", first = True)
-    raffle_end_date = draw_info.text.split("on ")[-1]
+    product_draw_info = res.html.find("div#main-product-enter-draw", first = True).find("h3", first = True)
+    raffle_end_date = product_draw_info.text.split("on ")[-1]
     return (url, sku_id, colourway, raffle_end_date)
     
-async def start_async_pdp_scrape(product_url_list: list) -> List[Tuple]:
-    """ Define a generator of coroutines of "(get_product_info_from_pdp(a_session, url)" for each URL,
-        gather and await all coroutines executed
+    
+async def start_async_pdp_scrape(product_url_list: list) -> List[Tuple[str, str, str, str]]:
+    """ 1. Define a generator of coroutines of "(get_product_info_from_pdp(a_session, url)" for each URL
+        2. Gather and await all coroutines executed
 
     Args:
         product_url_list (list): List of product URLs
 
     Returns:
-        List[Tuple]: List of tuples, each containing URL, SKU id, colourway
+        List[Tuple[str, str, str, str]]: List of tuples, each containing URL, SKU id, colourway, raffle end date
     """
     a_session = AsyncHTMLSession()    
     tasks = (get_product_info_from_pdp(a_session, url) for url in product_url_list) 
