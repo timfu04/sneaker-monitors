@@ -22,7 +22,7 @@ def run_discord_bot():
   async def on_ready():
     scrape_data.start()
 
-  @tasks.loop(minutes=15)  # Repeat task every 30 minutes
+  @tasks.loop(minutes=15)  # Repeat task every 15 minutes
   async def scrape_data():
     print(f"{'='*5} Start scrape {'='*5}")
     # Get datetime in Malaysia timezone
